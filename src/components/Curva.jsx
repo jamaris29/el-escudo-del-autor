@@ -1,72 +1,54 @@
-import { motion } from 'framer-motion'
+import { useEffect, useRef } from 'react'
+import { motion, useInView } from 'framer-motion'
 import { useApp } from '../App'
 
-const curvaData = {
-  es: {
-    sectionTitle: 'La Curva de Aprendizaje',
-    sectionSubtitle: 'Cada autor pasa por etapas. Conocerlas te da ventaja.',
-    stages: [
-      {
-        number: '01',
-        label: 'Inconscientemente incompetente',
-        description: 'No sabes lo que no sabes. Publicas sin estrategia y te preguntas por qué no funciona.',
-        icon: '🌱',
-      },
-      {
-        number: '02',
-        label: 'Conscientemente incompetente',
-        description: 'Descubres las brechas. Es incómodo, pero es el primer paso real hacia el dominio.',
-        icon: '🔍',
-      },
-      {
-        number: '03',
-        label: 'Conscientemente competente',
-        description: 'Aplicas las estrategias con esfuerzo. Los resultados llegan cuando eres consistente.',
-        icon: '⚙️',
-      },
-      {
-        number: '04',
-        label: 'Inconscientemente competente',
-        description: 'Lo que era difícil ahora es natural. Tu marca funciona sola porque internalizaste el sistema.',
-        icon: '🛡️',
-      },
-    ],
-  },
-  en: {
-    sectionTitle: 'The Learning Curve',
-    sectionSubtitle: 'Every author goes through stages. Knowing them gives you an edge.',
-    stages: [
-      {
-        number: '01',
-        label: 'Unconsciously Incompetent',
-        description: "You don't know what you don't know. You publish without strategy and wonder why it's not working.",
-        icon: '🌱',
-      },
-      {
-        number: '02',
-        label: 'Consciously Incompetent',
-        description: 'You discover the gaps. It\'s uncomfortable, but it\'s the first real step toward mastery.',
-        icon: '🔍',
-      },
-      {
-        number: '03',
-        label: 'Consciously Competent',
-        description: 'You apply the strategies with effort. Results come when you stay consistent.',
-        icon: '⚙️',
-      },
-      {
-        number: '04',
-        label: 'Unconsciously Competent',
-        description: 'What was hard is now natural. Your brand runs on its own because you internalized the system.',
-        icon: '🛡️',
-      },
-    ],
-  },
-}
-
 function Curva() {
-  const { lang } = useApp()
-  const c = curvaData[lang] || curvaData.es
+  const { t, theme } = useApp()
+  const cv = t.curva
+  const chartRef = useRef(null)
+  const isInView = useInView(chartRef, { once: true, margin: '-100px' })
+
+  // SVG dimensions
+  const W = 760
+  const H = 300
+  const padL = 50
+  const padR = 30
+  const padT = 30
+  const padB = 50
+  const chartW = W - padL - padR
+  const chartH = H - padT - padB
+
+  // Data points (month 0 to 8)
+  const months = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+  // Editorial effort: high at start, drops fast
+  const editorial = [95, 85, 50, 15, 8, 5, 3, 2, 2]
+  // Author effort: starts low, ramps up
+  const autor = [10, 20, 35, 55, 70, 80, 85, 90, 92]
+
+  const toX = (month) => padL + (month / 8) * chartW
+  const toY = (val) => padT + chartH - (val / 100) * chartH
+
+  const makePath = (data) => {
+    // Create smooth curve with cubic bezier
+    let d = `M ${toX(0)},${toY(data[0])}`
+    for (let i = 1; i < data.length; i++) {
+      const x0 = toX(i - 1)
+      const y0 = toY(data[i - 1])
+      const x1 = toX(i)
+      const y1 = toY(data[i])
+      const cx = (x0 + x1) / 2
+      d += ` C ${cx},${y0} ${cx},${y1} ${x1},${y1}`
+    }
+    return d
+  }
+
+  const editorialPath = makePath(editorial)
+  const autorPath = makePath(autor)
+
+  const textColor = theme === 'dark' ? '#A1A1AA' : '#6B7280'
+  const gridColor = theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'
+  const violetColor = '#7C3AED'
+  const primaryColor = theme === 'dark' ? '#F0F0F2' : '#000000'
 
   return (
     <section className="curva section" id="curva">
@@ -79,28 +61,154 @@ function Curva() {
           transition={{ duration: 0.6 }}
         >
           <div className="section-divider" />
-          <h2 className="section-title">{c.sectionTitle}</h2>
-          <p className="section-subtitle" style={{ margin: '0 auto' }}>{c.sectionSubtitle}</p>
+          <h2 className="section-title">{cv.sectionTitle}</h2>
+          <p className="section-subtitle" style={{ margin: '0 auto' }}>{cv.sectionSubtitle}</p>
         </motion.div>
 
-        <div className="curva-stages">
-          {c.stages.map((stage, i) => (
+        <div className="curva-chart-container" ref={chartRef}>
+          <div className="curva-chart">
+            <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
+              {/* Grid lines */}
+              {[0, 25, 50, 75, 100].map((v) => (
+                <line
+                  key={v}
+                  x1={padL}
+                  y1={toY(v)}
+                  x2={W - padR}
+                  y2={toY(v)}
+                  stroke={gridColor}
+                  strokeWidth="1"
+                />
+              ))}
+
+              {/* Month labels */}
+              {months.map((m) => (
+                <text
+                  key={m}
+                  x={toX(m)}
+                  y={H - 10}
+                  textAnchor="middle"
+                  fill={textColor}
+                  fontSize="11"
+                  fontFamily="Inter, sans-serif"
+                >
+                  {cv.month} {m}
+                </text>
+              ))}
+
+              {/* Y-axis labels */}
+              {[0, 50, 100].map((v) => (
+                <text
+                  key={v}
+                  x={padL - 10}
+                  y={toY(v) + 4}
+                  textAnchor="end"
+                  fill={textColor}
+                  fontSize="10"
+                  fontFamily="Inter, sans-serif"
+                >
+                  {v}%
+                </text>
+              ))}
+
+              {/* Zones background */}
+              <rect
+                x={padL}
+                y={padT}
+                width={toX(2) - padL}
+                height={chartH}
+                fill={`${violetColor}08`}
+                rx="4"
+              />
+
+              {/* Editorial curve */}
+              <motion.path
+                d={editorialPath}
+                fill="none"
+                stroke={violetColor}
+                strokeWidth="3"
+                strokeLinecap="round"
+                initial={{ pathLength: 0 }}
+                animate={isInView ? { pathLength: 1 } : { pathLength: 0 }}
+                transition={{ duration: 1.5, ease: 'easeInOut' }}
+              />
+
+              {/* Author curve */}
+              <motion.path
+                d={autorPath}
+                fill="none"
+                stroke={primaryColor}
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeDasharray="8 4"
+                initial={{ pathLength: 0 }}
+                animate={isInView ? { pathLength: 1 } : { pathLength: 0 }}
+                transition={{ duration: 1.5, ease: 'easeInOut', delay: 0.3 }}
+              />
+
+              {/* Data dots - editorial */}
+              {editorial.map((v, i) => (
+                <motion.circle
+                  key={`e-${i}`}
+                  cx={toX(i)}
+                  cy={toY(v)}
+                  r="4"
+                  fill={violetColor}
+                  initial={{ opacity: 0, scale: 0 }}
+                  animate={isInView ? { opacity: 1, scale: 1 } : {}}
+                  transition={{ duration: 0.3, delay: 0.2 + i * 0.1 }}
+                />
+              ))}
+
+              {/* Data dots - author */}
+              {autor.map((v, i) => (
+                <motion.circle
+                  key={`a-${i}`}
+                  cx={toX(i)}
+                  cy={toY(v)}
+                  r="4"
+                  fill={primaryColor}
+                  initial={{ opacity: 0, scale: 0 }}
+                  animate={isInView ? { opacity: 1, scale: 1 } : {}}
+                  transition={{ duration: 0.3, delay: 0.5 + i * 0.1 }}
+                />
+              ))}
+            </svg>
+          </div>
+
+          <div className="curva-legend">
+            <div className="legend-item">
+              <span className="legend-dot editorial" />
+              {cv.labelEditorial}
+            </div>
+            <div className="legend-item">
+              <span className="legend-dot autor" />
+              {cv.labelAutor}
+            </div>
+          </div>
+
+          <div className="curva-zones">
             <motion.div
-              className="curva-stage"
-              key={i}
-              initial={{ opacity: 0, x: i % 2 === 0 ? -40 : 40 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true, margin: '-80px' }}
-              transition={{ duration: 0.6, delay: i * 0.15 }}
+              className="zone-card"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.3 }}
             >
-              <div className="curva-icon">{stage.icon}</div>
-              <div className="curva-content">
-                <span className="curva-number">{stage.number}</span>
-                <h3 className="curva-label">{stage.label}</h3>
-                <p className="curva-description">{stage.description}</p>
-              </div>
+              <h4 style={{ color: violetColor }}>📈 {cv.zonaEditorial}</h4>
+              <p>{cv.month} 0-2</p>
             </motion.div>
-          ))}
+            <motion.div
+              className="zone-card"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.5 }}
+            >
+              <h4>🎯 {cv.zonaAutor}</h4>
+              <p>{cv.month} 3+</p>
+            </motion.div>
+          </div>
         </div>
       </div>
     </section>
